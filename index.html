@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-family:system-ui,sans-serif;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Token Meter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an instrument panel. Conversation on the left, a sticky fuel gauge on the right, a short field guide below. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --sunk: #e8ecf2;
+  --line: #d4dae4;
+  --fg: #16202e;
+  --muted: #5b6678;
+  --accent: #2f55d4;
+  --accent-soft: #dfe6fb;
+  --user: #2f55d4;
+  --ai: #8a5a14;
+  --ai-soft: #f6ead6;
+  --overhead: #8792a6;
+  --ok: #1d8a55;
+  --warn: #c27a00;
+  --crit: #c8352b;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --surface: #171e29; --sunk: #1e2734; --line: #2c3746;
+    --fg: #e6ebf3; --muted: #95a1b4; --accent: #7d9bff; --accent-soft: #23305a;
+    --user: #7d9bff; --ai: #e3b26a; --ai-soft: #3a2c17; --overhead: #6c778a;
+    --ok: #3fc483; --warn: #f0a92e; --crit: #ff6b5f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --surface: #171e29; --sunk: #1e2734; --line: #2c3746;
+  --fg: #e6ebf3; --muted: #95a1b4; --accent: #7d9bff; --accent-soft: #23305a;
+  --user: #7d9bff; --ai: #e3b26a; --ai-soft: #3a2c17; --overhead: #6c778a;
+  --ok: #3fc483; --warn: #f0a92e; --crit: #ff6b5f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 700; }
+h2 { font-size: 20px; font-weight: 700; }
+h3 { font-size: 15px; font-weight: 700; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+header.top p { margin: 6px 0 0; max-width: 62ch; color: var(--muted); }
+.lib { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.dot.ready { background: var(--ok); }
+
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field select, .field input { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; }
+.field small { color: var(--muted); font-size: 12px; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } .meter { position: static !important; order: -1; } }
+
+.chat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; }
+.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.example-tag { font-size: 12px; background: var(--ai-soft); color: var(--ai); padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.log { display: flex; flex-direction: column; gap: 10px; padding: 14px; max-height: 560px; overflow-y: auto; }
+.empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+.msg { display: grid; grid-template-columns: 4px minmax(0, 1fr); gap: 10px; }
+.msg .stripe { border-radius: 2px; background: var(--user); }
+.msg.ai .stripe { background: var(--ai); }
+.msg-top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.who { font-weight: 600; font-size: 13px; }
+.msg.user .who { color: var(--user); }
+.msg.ai .who { color: var(--ai); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-family: var(--mono); font-size: 12px; background: var(--sunk); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+.chip.big { background: var(--accent-soft); color: var(--accent); }
+.msg-text { white-space: pre-wrap; word-break: break-word; margin-top: 2px; max-height: 7.5em; overflow: hidden; position: relative; }
+.msg-text.open { max-height: none; }
+.more { background: none; border: 0; color: var(--accent); padding: 0; cursor: pointer; font-size: 13px; }
+.del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; padding: 0 2px; }
+.del:hover { color: var(--crit); }
+
+.composer { border-top: 1px solid var(--line); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.composer textarea { width: 100%; min-height: 110px; resize: vertical; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px; line-height: 1.45; }
+.live { display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline; font-size: 13px; }
+.live strong { font-family: var(--mono); font-size: 18px; color: var(--fg); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary { color: #0f141c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0f141c; } }
+.btn.ai { background: var(--ai-soft); border-color: var(--ai); color: var(--ai); }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.attach { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.attach label { cursor: pointer; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+.meter { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.gauge-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; color: #fff; background: var(--ok); }
+.pill.warn { background: var(--warn); }
+.pill.crit { background: var(--crit); }
+.bignum { font-family: var(--mono); font-size: 30px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.bar { height: 14px; border-radius: 4px; background: var(--sunk); overflow: hidden; display: flex; }
+.bar span { height: 100%; transition: width .35s ease; }
+.seg-over { background: var(--overhead); }
+.seg-user { background: var(--user); }
+.seg-ai { background: var(--ai); }
+.seg-draft { background: repeating-linear-gradient(45deg, var(--accent) 0 4px, transparent 4px 8px); opacity: .7; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.stat .v { font-family: var(--mono); font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 12px; color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.warnbox { font-size: 13px; border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--sunk); border-radius: 0 6px 6px 0; }
+.warnbox.crit { border-color: var(--crit); }
+
+.guide { margin-top: 34px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.guide-intro { grid-column: 1 / -1; max-width: 70ch; }
+.guide-intro p { color: var(--muted); margin: 6px 0 0; }
+.tip { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.tip p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.tip .save { margin-top: 8px; font-family: var(--mono); font-size: 12px; color: var(--ok); }
+.scale { grid-column: 1 / -1; overflow-x: auto; }
+.scale table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
+.scale th, .scale td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.scale td.num { text-align: right; }
+.scale th { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Token Meter</h1>
+      <p>Type or paste what you send to an AI and what it replies. See how many tokens each message costs, how full the model's memory is, and how much of your budget is left.</p>
+    </div>
+    <div class="lib" id="libStatus"><span class="dot" id="libDot"></span><span id="libText">Loading tokenizer…</span></div>
+  </header>
+
+  <section class="settings" aria-label="Settings">
+    <div class="field">
+      <label class="label" for="model">AI model</label>
+      <select id="model"></select>
+      <small id="modelNote"></small>
+    </div>
+    <div class="field">
+      <label class="label" for="ctx">Context window (tokens)</label>
+      <input id="ctx" type="number" min="1000" step="1000">
+      <small>How much the model can hold at once</small>
+    </div>
+    <div class="field">
+      <label class="label" for="overhead">Hidden app overhead</label>
+      <input id="overhead" type="number" min="0" step="100">
+      <small>System prompt, tools, memory the app adds</small>
+    </div>
+    <div class="field">
+      <label class="label" for="budget">My usage budget (tokens)</label>
+      <input id="budget" type="number" min="0" step="10000">
+      <small>Your own limit per session or day</small>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="chat" aria-label="Conversation">
+      <div class="chat-head">
+        <div class="row"><h2>Conversation</h2><span class="example-tag" id="exampleTag">Example chat</span></div>
+        <div class="row">
+          <button class="btn ghost" id="loadExample" type="button">Load example</button>
+          <button class="btn ghost" id="clearChat" type="button">Clear chat</button>
+        </div>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="composer">
+        <label class="label" for="draft">Your message, or paste the AI's reply</label>
+        <textarea id="draft" placeholder="Type or paste text here. The count updates as you type."></textarea>
+        <div class="live">
+          <span><strong id="draftTok">0</strong> tokens</span>
+          <span class="muted"><span class="num" id="draftWords">0</span> words · <span class="num" id="draftChars">0</span> characters</span>
+          <span class="muted" id="draftRatio"></span>
+        </div>
+        <div class="attach">
+          <span>Attaching an image?</span>
+          <label for="img">Choose image</label>
+          <input id="img" type="file" accept="image/*" hidden>
+          <span id="imgInfo"></span>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="sendUser" type="button">Add as my message</button>
+          <button class="btn ai" id="sendAi" type="button">Add as AI reply</button>
+        </div>
+        <p class="note" id="sendCost"></p>
+      </div>
+    </section>
+
+    <aside class="meter" aria-label="Token meter">
+      <div class="panel">
+        <div class="gauge-head">
+          <span class="label">Context window used</span>
+          <span class="pill" id="statePill">Plenty of room</span>
+        </div>
+        <div><span class="bignum" id="ctxUsed">0</span> <span class="muted">/ <span class="num" id="ctxMax">0</span></span></div>
+        <div class="bar" role="img" id="ctxBar" aria-label="Context window usage">
+          <span class="seg-over" id="segOver"></span>
+          <span class="seg-user" id="segUser"></span>
+          <span class="seg-ai" id="segAi"></span>
+          <span class="seg-draft" id="segDraft"></span>
+        </div>
+        <div class="legend">
+          <span><i class="seg-over"></i>App overhead</span>
+          <span><i class="seg-user"></i>Your messages</span>
+          <span><i class="seg-ai"></i>AI replies</span>
+          <span><i class="seg-draft"></i>Draft</span>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="ctxLeft">0</div><div class="s">tokens left in context</div></div>
+          <div class="stat"><div class="v" id="turnsLeft">–</div><div class="s">more back-and-forths fit</div></div>
+        </div>
+        <div id="ctxWarn"></div>
+      </div>
+
+      <div class="panel">
+        <span class="label">Usage budget spent</span>
+        <div><span class="bignum" id="spent">0</span> <span class="muted">/ <span class="num" id="budgetMax">0</span></span></div>
+        <div class="bar" role="img" aria-label="Budget usage"><span id="segBudget" style="background:var(--accent)"></span></div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="budgetLeft">0</div><div class="s">tokens left in budget</div></div>
+          <div class="stat"><div class="v" id="nextCost">0</div><div class="s">next message will cost about</div></div>
+        </div>
+        <p class="note">Every time you send, the app re-sends the <em>whole</em> chat so far, so spend grows faster than the chat does.</p>
+      </div>
+
+      <div class="panel chart">
+        <span class="label">Tokens processed per turn</span>
+        <div id="chart"></div>
+        <p class="note">Each bar is one reply. Input is everything re-read; output is what the AI wrote.</p>
+      </div>
+    </aside>
+  </div>
+
+  <section class="guide" aria-label="How to use fewer tokens">
+    <div class="guide-intro">
+      <h2>How to make your tokens last</h2>
+      <p>A token is a chunk of text, roughly ¾ of an English word. Models read and write in tokens, and limits on paid plans are counted in them too.</p>
+    </div>
+    <div class="tip"><h3>Start a new chat for a new topic</h3><p>A long chat re-sends all earlier messages each turn. A fresh chat starts near zero.</p><div class="save" id="tipFresh">Saves the whole history on every turn</div></div>
+    <div class="tip"><h3>Paste only the part that matters</h3><p>Share the function, paragraph or table rows in question, not the entire file or document.</p><div class="save">A 20-page PDF can be 15,000+ tokens</div></div>
+    <div class="tip"><h3>Edit your message instead of correcting</h3><p>If the reply missed, edit and resend your prompt. A follow-up "no, I meant…" keeps the wrong answer in context.</p><div class="save">Drops a wasted reply from history</div></div>
+    <div class="tip"><h3>Ask for the length you need</h3><p>"Answer in 5 bullet points" or "code only, no explanation" keeps replies short. Output tokens often count more against limits.</p><div class="save">Replies shrink 50–80%</div></div>
+    <div class="tip"><h3>Summarise, then restart</h3><p>When the gauge turns amber, ask for a summary of decisions so far, then open a new chat with that summary.</p><div class="save">Turns 50,000 tokens into ~800</div></div>
+    <div class="tip"><h3>Resize images before uploading</h3><p>Image cost depends on pixel size. A screenshot cropped to the relevant area costs far less than a full screen.</p><div class="save">1568×1568 ≈ 3,300 tokens; 800×600 ≈ 640</div></div>
+    <div class="scale">
+      <table>
+        <thead><tr><th>What you send</th><th>Typical size</th><th class="num">Approx. tokens</th></tr></thead>
+        <tbody>
+          <tr><td>A short question</td><td>1–2 sentences</td><td class="num">15–40</td></tr>
+          <tr><td>An email</td><td>200 words</td><td class="num">≈ 270</td></tr>
+          <tr><td>A page of a document</td><td>500 words</td><td class="num">≈ 670</td></tr>
+          <tr><td>A code file</td><td>300 lines</td><td class="num">≈ 3,000</td></tr>
+          <tr><td>A novel chapter</td><td>5,000 words</td><td class="num">≈ 6,700</td></tr>
+          <tr><td>A screenshot</td><td>1280×800 px</td><td class="num">≈ 1,400</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gpt-tokenizer@2.8.1/dist/o200k_base.js"></script>
+<script>
+(function () {
+  // Exact counts come from the OpenAI o200k tokenizer. Other vendors don't publish a browser tokenizer,
+  // so their counts are scaled from it and labelled as estimates.
+  const MODELS = [
+    { id: "claude", name: "Claude (Opus / Sonnet / Haiku)", ctx: 200000, factor: 1.15, overhead: 3000, exact: false, img: "claude", note: "Estimate. Claude's tokenizer runs ~15% above OpenAI's." },
+    { id: "claude1m", name: "Claude, long-context (1M)", ctx: 1000000, factor: 1.15, overhead: 3000, exact: false, img: "claude", note: "Estimate. Long context is available on some plans and APIs." },
+    { id: "gpt", name: "ChatGPT / GPT-4o", ctx: 128000, factor: 1, overhead: 2000, exact: true, img: "openai", note: "Exact count (o200k tokenizer). Apps may cap context lower than the API." },
+    { id: "gemini", name: "Gemini Pro", ctx: 1000000, factor: 1.0, overhead: 2000, exact: false, img: "gemini", note: "Estimate based on a similar tokenizer." },
+    { id: "custom", name: "Other / custom", ctx: 32000, factor: 1, overhead: 1000, exact: false, img: "claude", note: "Set the context window yourself." }
+  ];
+  const EXAMPLE = [
+    { role: "user", text: "I'm planning a 3-day trip to Jaipur in December. Can you suggest an itinerary with must-see places and good local food spots?" },
+    { role: "ai", text: "Here's a relaxed 3-day Jaipur plan for December, when days are pleasant and evenings are cool.\n\nDay 1 – Old City\n• Morning: Hawa Mahal from the café across the road for the best view, then City Palace.\n• Afternoon: Jantar Mantar, the UNESCO-listed observatory next door.\n• Evening: Johari and Bapu Bazaar for textiles and jewellery.\n• Eat: Laxmi Misthan Bhandar (LMB) for pyaaz kachori and ghewar.\n\nDay 2 – Forts\n• Morning: Amber Fort; arrive by 8am to avoid crowds.\n• Afternoon: Jaigarh Fort and the world's largest cannon on wheels.\n• Sunset: Nahargarh Fort, overlooking the city.\n• Eat: Dinner at Padao on Nahargarh.\n\nDay 3 – Slower day\n• Albert Hall Museum, then Patrika Gate for photos.\n• Afternoon block-printing workshop in Sanganer.\n• Eat: Rawat Mishthan Bhandar for mawa kachori, and lassi at Lassiwala on MI Road.\n\nTip: buy the composite ticket (₹1,000 for foreigners, ₹300 for Indians) that covers most monuments over two days." },
+    { role: "user", text: "Great. Can you make it more budget friendly and add travel time between places?" },
+    { role: "ai", text: "Sure. Budget version with travel times (by auto-rickshaw unless noted):\n\nDay 1 – Old City (all within 2 km, walkable)\n• Hawa Mahal → City Palace: 5 min walk\n• City Palace → Jantar Mantar: 2 min walk\n• Jantar Mantar → Bapu Bazaar: 10 min walk\n• Food: street kachori ₹30–50, thali at a dhaba ₹150\n\nDay 2 – Forts\n• City → Amber Fort: 30 min by city bus (₹20) instead of a taxi\n• Amber → Jaigarh: 15 min walk uphill\n• Jaigarh → Nahargarh: 25 min by shared auto (₹50–80)\n• Food: carry snacks; fort cafés charge 2–3× more\n\nDay 3\n• Albert Hall → Patrika Gate: 20 min by auto (₹100)\n• Patrika Gate → Sanganer: 25 min (₹150)\n\nEstimated daily spend: ₹800–1,200 per person excluding stay." }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.round(n).toLocaleString("en-US");
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("tm:" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("tm:" + k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  let tok = null;
+  function ensureTokenizer() {
+    if (!tok && window.GPTTokenizer_o200k_base) tok = window.GPTTokenizer_o200k_base;
+    if (tok) { $("libDot").classList.add("ready"); $("libText").textContent = "Tokenizer loaded"; }
+    else { $("libText").textContent = "Tokenizer unavailable, using estimates"; }
+  }
+  function baseCount(text) {
+    if (!text) return 0;
+    if (tok) { try { return tok.encode(text).length; } catch (e) {} }
+    // Fallback: about 4 characters per token for English, closer to 1–2 for scripts like Devanagari or CJK.
+    const nonLatin = (text.match(/[^\x00-\x7F]/g) || []).length;
+    return Math.ceil((text.length - nonLatin) / 4 + nonLatin / 1.5);
+  }
+
+  let state = {
+    model: store.get("model", "claude"),
+    ctx: store.get("ctx", null),
+    overhead: store.get("overhead", null),
+    budget: store.get("budget", 500000),
+    msgs: store.get("msgs", null),
+    isExample: store.get("isExample", true),
+    draftImg: 0
+  };
+  if (!state.msgs) { state.msgs = EXAMPLE.map(m => ({ ...m, img: 0 })); state.isExample = true; }
+  const model = () => MODELS.find(m => m.id === state.model) || MODELS[0];
+  const count = text => Math.round(baseCount(text) * model().factor);
+  const msgTokens = m => count(m.text) + (m.img || 0);
+
+  // Settings
+  MODELS.forEach(m => { const o = document.createElement("option"); o.value = m.id; o.textContent = m.name; $("model").appendChild(o); });
+  function applyModelDefaults(reset) {
+    const m = model();
+    $("model").value = m.id;
+    if (reset || state.ctx == null) state.ctx = m.ctx;
+    if (reset || state.overhead == null) state.overhead = m.overhead;
+    $("ctx").value = state.ctx; $("overhead").value = state.overhead; $("budget").value = state.budget;
+    $("modelNote").textContent = m.note;
+  }
+  $("model").addEventListener("change", e => { state.model = e.target.value; applyModelDefaults(true); save(); render(); });
+  [["ctx", "ctx"], ["overhead", "overhead"], ["budget", "budget"]].forEach(([id, key]) => {
+    $(id).addEventListener("input", e => { const v = Number(e.target.value); if (v >= 0) { state[key] = v; save(); render(); } });
+  });
+  function save() { ["model", "ctx", "overhead", "budget", "msgs", "isExample"].forEach(k => store.set(k, state[k])); }
+
+  // Simulate the turns: each AI reply processes overhead + full history as input, then writes its reply as output.
+  function simulate() {
+    const turns = []; let history = 0;
+    state.msgs.forEach(m => {
+      const t = msgTokens(m);
+      if (m.role === "ai") turns.push({ input: state.overhead + history, output: t });
+      history += t;
+    });
+    return { turns, history };
+  }
+
+  function renderLog() {
+    const log = $("log"); log.innerHTML = "";
+    $("exampleTag").hidden = !state.isExample;
+    if (!state.msgs.length) {
+      log.innerHTML = '<div class="empty"><h3>No messages yet</h3><p>Type your prompt below and press <b>Add as my message</b>. Then paste the AI\'s answer and press <b>Add as AI reply</b>.</p></div>';
+      return;
+    }
+    let history = 0;
+    state.msgs.forEach((m, i) => {
+      const t = msgTokens(m);
+      const el = document.createElement("div");
+      el.className = "msg " + m.role;
+      let chips = `<span class="chip">${fmt(t)} tok</span>`;
+      if (m.img) chips += `<span class="chip">incl. image ${fmt(m.img)}</span>`;
+      if (m.role === "ai") chips += `<span class="chip big" title="Overhead + all earlier messages, re-read to write this reply">read ${fmt(state.overhead + history)} to write it</span>`;
+      el.innerHTML = `<div class="stripe"></div><div>
+        <div class="msg-top"><span class="who">${m.role === "user" ? "You" : "AI"}</span><span class="chips">${chips}<button class="del" type="button" aria-label="Delete message" data-i="${i}">✕</button></span></div>
+        <div class="msg-text"></div></div>`;
+      const body = el.querySelector(".msg-text");
+      body.textContent = m.text || (m.img ? "[image]" : "");
+      log.appendChild(el);
+      if (body.scrollHeight > body.clientHeight + 4) {
+        const b = document.createElement("button"); b.className = "more"; b.type = "button"; b.textContent = "Show all";
+        b.onclick = () => { body.classList.toggle("open"); b.textContent = body.classList.contains("open") ? "Show less" : "Show all"; };
+        body.after(b);
+      }
+      history += t;
+    });
+    log.querySelectorAll(".del").forEach(b => b.onclick = () => { state.msgs.splice(+b.dataset.i, 1); save(); render(); });
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function renderMeter() {
+    const { turns, history } = simulate();
+    const draft = count($("draft").value) + state.draftImg;
+    const ctx = Math.max(state.ctx, 1);
+    let userT = 0, aiT = 0;
+    state.msgs.forEach(m => { if (m.role === "user") userT += msgTokens(m); else aiT += msgTokens(m); });
+    const used = state.overhead + history;
+    const pct = v => Math.min(100, v / ctx * 100) + "%";
+    $("segOver").style.width = pct(state.overhead);
+    $("segUser").style.width = pct(userT);
+    $("segAi").style.width = pct(aiT);
+    $("segDraft").style.width = pct(Math.max(0, Math.min(draft, ctx - used)));
+    $("ctxUsed").textContent = fmt(used);
+    $("ctxMax").textContent = fmt(ctx);
+    const left = Math.max(0, ctx - used);
+    $("ctxLeft").textContent = fmt(left);
+    $("ctxBar").setAttribute("aria-label", `Context ${Math.round(used / ctx * 100)}% full`);
+
+    // Average size of one back-and-forth, used to forecast remaining turns.
+    const pairs = Math.max(1, turns.length);
+    const avgPair = history > 0 ? history / pairs : 0;
+    $("turnsLeft").textContent = avgPair ? (left / avgPair >= 999 ? "999+" : fmt(Math.floor(left / avgPair))) : "–";
+
+    const frac = used / ctx;
+    const pill = $("statePill"); pill.className = "pill";
+    let warn = "";
+    if (frac >= 0.9) { pill.classList.add("crit"); pill.textContent = "Nearly full"; warn = '<div class="warnbox crit">The model will soon start forgetting or refuse to continue. Summarise and start a new chat.</div>'; }
+    else if (frac >= 0.6) { pill.classList.add("warn"); pill.textContent = "Getting full"; warn = '<div class="warnbox">Over 60% full. Long chats get slower, cost more per turn, and the model may lose track of early details.</div>'; }
+    else pill.textContent = "Plenty of room";
+    if (used + draft > ctx) warn = '<div class="warnbox crit">This draft will not fit in the remaining context.</div>';
+    $("ctxWarn").innerHTML = warn;
+
+    const spent = turns.reduce((s, t) => s + t.input + t.output, 0);
+    $("spent").textContent = fmt(spent);
+    $("budgetMax").textContent = fmt(state.budget);
+    $("budgetLeft").textContent = fmt(Math.max(0, state.budget - spent));
+    $("segBudget").style.width = state.budget ? Math.min(100, spent / state.budget * 100) + "%" : "0%";
+    $("segBudget").style.background = spent > state.budget ? "var(--crit)" : spent > state.budget * 0.75 ? "var(--warn)" : "var(--accent)";
+    const avgOut = turns.length ? turns.reduce((s, t) => s + t.output, 0) / turns.length : 300;
+    const next = state.overhead + history + draft + avgOut;
+    $("nextCost").textContent = fmt(next);
+    $("sendCost").textContent = draft
+      ? `Sending this will make the AI read about ${fmt(state.overhead + history + draft)} tokens (overhead + whole chat + this message), then write ~${fmt(avgOut)} more.`
+      : "";
+    $("tipFresh").textContent = history ? `In this chat: ${fmt(history)} tokens re-sent on every turn` : "Saves the whole history on every turn";
+    renderChart(turns);
+  }
+
+  function renderChart(turns) {
+    const box = $("chart");
+    if (!turns.length) { box.innerHTML = '<p class="note">Add an AI reply to see the first bar.</p>'; return; }
+    const W = 320, H = 150, L = 44, B = 22, T = 8, R = 6;
+    const max = Math.max(...turns.map(t => t.input + t.output));
+    const nice = (() => { const p = Math.pow(10, Math.floor(Math.log10(max))); const s = [1, 2, 2.5, 5, 10].find(s => s * p >= max); return s * p; })();
+    const y = v => T + (H - T - B) * (1 - v / nice);
+    const slot = (W - L - R) / turns.length;
+    const bw = Math.min(28, slot * 0.7);
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tokens processed per turn">`;
+    [0, nice / 2, nice].forEach(v => {
+      s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
+      s += `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${v >= 1000 ? (v / 1000).toLocaleString("en-US") + "k" : v}</text>`;
+    });
+    turns.forEach((t, i) => {
+      const x = L + slot * i + (slot - bw) / 2;
+      s += `<rect x="${x}" y="${y(t.input)}" width="${bw}" height="${y(0) - y(t.input)}" fill="var(--user)" opacity=".85"><title>Turn ${i + 1}: read ${fmt(t.input)}</title></rect>`;
+      s += `<rect x="${x}" y="${y(t.input + t.output)}" width="${bw}" height="${y(t.input) - y(t.input + t.output)}" fill="var(--ai)"><title>Turn ${i + 1}: wrote ${fmt(t.output)}</title></rect>`;
+      if (turns.length <= 12) s += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="10" font-family="IBM Plex Mono, monospace" fill="var(--muted)">${i + 1}</text>`;
+    });
+    s += `</svg><div class="legend"><span><i class="seg-user"></i>Input (re-read)</span><span><i class="seg-ai"></i>Output (written)</span></div>`;
+    box.innerHTML = s;
+  }
+
+  function render() { renderLog(); renderMeter(); }
+
+  // Composer
+  function updateDraft() {
+    const text = $("draft").value;
+    const t = count(text);
+    $("draftTok").textContent = (model().exact || !tok ? "" : "≈") + fmt(t + state.draftImg);
+    const words = (text.trim().match(/\S+/g) || []).length;
+    $("draftWords").textContent = fmt(words);
+    $("draftChars").textContent = fmt(text.length);
+    $("draftRatio").textContent = words && t ? `${(t / words).toFixed(2)} tokens per word` : "";
+    store.set("draft", text);
+    renderMeter();
+  }
+  let timer; $("draft").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(updateDraft, 80); });
+
+  function imageTokens(w, h) {
+    const kind = model().img;
+    if (kind === "openai") { // high detail: fit 2048, shortest side 768, 170 per 512px tile + 85
+      let s = Math.min(1, 2048 / Math.max(w, h)); w *= s; h *= s;
+      s = Math.min(1, 768 / Math.min(w, h)); w *= s; h *= s;
+      return 85 + 170 * Math.ceil(w / 512) * Math.ceil(h / 512);
+    }
+    if (kind === "gemini") return 258 * Math.max(1, Math.ceil(w / 768) * Math.ceil(h / 768));
+    const s = Math.min(1, 1568 / Math.max(w, h)); // Claude: long edge capped near 1568px, ~w*h/750
+    return Math.ceil((w * s) * (h * s) / 750);
+  }
+  $("img").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f); const im = new Image();
+    im.onload = () => {
+      state.draftImg = imageTokens(im.naturalWidth, im.naturalHeight);
+      $("imgInfo").innerHTML = `${im.naturalWidth}×${im.naturalHeight}px ≈ <b class="num">${fmt(state.draftImg)}</b> tokens <button class="more" type="button" id="rmImg">Remove</button>`;
+      $("rmImg").onclick = () => { state.draftImg = 0; $("imgInfo").textContent = ""; $("img").value = ""; updateDraft(); };
+      URL.revokeObjectURL(url); updateDraft();
+    };
+    im.src = url;
+  });
+
+  function add(role) {
+    const text = $("draft").value.trim();
+    if (!text && !state.draftImg) { $("draft").focus(); return; }
+    if (state.isExample) { state.msgs = []; state.isExample = false; }
+    state.msgs.push({ role, text, img: state.draftImg });
+    $("draft").value = ""; state.draftImg = 0; $("imgInfo").textContent = ""; $("img").value = "";
+    save(); render(); updateDraft();
+  }
+  $("sendUser").onclick = () => add("user");
+  $("sendAi").onclick = () => add("ai");
+  $("clearChat").onclick = () => { state.msgs = []; state.isExample = false; save(); render(); };
+  $("loadExample").onclick = () => { state.msgs = EXAMPLE.map(m => ({ ...m, img: 0 })); state.isExample = true; save(); render(); };
+
+  ensureTokenizer();
+  applyModelDefaults(false);
+  $("draft").value = store.get("draft", "");
+  render(); updateDraft();
+})();
+</script>
+</body>
+</html>
