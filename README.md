@@ -12,6 +12,8 @@ Paste your prompt and the AI's reply. Token Meter shows:
 - **Image cost estimate** from the image's pixel size
 - **Tips** for making tokens last
 
+<p align="center"><a href="https://hemashreevi.github.io/token-meter/"><img src="https://img.shields.io/badge/%E2%96%B6_Try_it_live-in_your_browser-6f42c1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="%E2%96%B6 Try it live-in your browser"></a></p>
+
 ## Use it
 
 Open `index.html` in any browser, or visit the GitHub Pages site for this repo. No install or build step needed.
